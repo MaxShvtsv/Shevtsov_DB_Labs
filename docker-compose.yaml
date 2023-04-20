@@ -1,0 +1,25 @@
+version: '3.10.1'
+services:
+  app:
+    build: ./app/
+    depends_on:
+      - database
+    networks:
+      - test
+    environment:
+      PYTHONUNBUFFERED: 1
+
+  database:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=133451
+      - POSTGRES_DB=db_01_shevtsov
+    ports:
+      - '5432:5432'
+    networks:
+      - test
+
+networks:
+  test:
