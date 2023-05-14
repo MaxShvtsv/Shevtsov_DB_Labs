@@ -1,1 +1,1 @@
-Elapsed time in seconds: 1541.53
+Elapsed time in seconds: 115.31
