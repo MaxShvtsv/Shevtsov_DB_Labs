@@ -28,7 +28,7 @@ CREATE TABLE results (
     school_id INT,
     testname VARCHAR(256),
     teststatus VARCHAR(256),
-    ball100 NUMERIC,
+    ball100 VARCHAR(256),
     ball12 NUMERIC,
     ball NUMERIC,
     lang VARCHAR(256),
@@ -37,7 +37,6 @@ CREATE TABLE results (
     FOREIGN KEY (student_id) REFERENCES students(student_id),
     FOREIGN KEY (school_id) REFERENCES schools(school_id)
 );
--- !!! MANAGE LINES AND CHANGE NAME OF TABLES COLUMNS
 -- Add location data to zno_locations table from init table
 INSERT INTO zno_locations (ptregname, ptareaname, pttername, tertypename)
 SELECT DISTINCT regname,

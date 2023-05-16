@@ -2,12 +2,13 @@ print('--- Start ---')
 
 import psycopg2.extras as extras
 import pandas as pd
-import numpy as np
 import psycopg2
 import time
 import os
 
 # docker-compose build --no-cache && docker-compose up -d --force-recreate
+# psql -U postgres -d db_01_shevtsov
+# \dt
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 
@@ -20,25 +21,15 @@ DTYPE_DICT = {
     'object': 'VARCHAR(256)'
 }
 
-# def migration(conn):
-#     path_to_sql_script = CWD + '\sql\V0_migration.sql'
+def connect_to_database():
+    my_host = 'database'
+    # my_host = '127.0.0.1'
 
-#     # Executing commands
-#     sql_file = None
+    return psycopg2.connect(
+        database="db_01_shevtsov", user='postgres', password='133451', host=my_host, port='5432'
+    )
 
-#     with open(path_to_sql_script, 'r') as f:
-#         sql_file = f.read()
-
-#     sql_commands = sql_file.split(';')
-
-#     for command in sql_commands:
-#         try:
-#             cur = conn.cursor()
-#             cur.execute(command)
-#         except Exception as e:
-#             print("Command skipped: ", str(e))
-
-def create_init_table(conn, df, table):
+def creating_tables(conn, df, table):
 
     print(f'Creating {table}...')
 
@@ -60,14 +51,7 @@ def create_init_table(conn, df, table):
     conn.commit()
 
     # Inserting into table
-    tuples = []
-    it = 0
-    for i in df.to_numpy():
-        it += 1
-        tuples.append(tuple(i))
-        if it % 10 == 0:
-            print('Inserted', it)
-
+    tuples = [tuple(x) for x in df.to_numpy()]
 
     cols = ','.join(list(df.columns))
 
@@ -110,10 +94,7 @@ def create_init_table(conn, df, table):
                 print('Connection to database is lost. Reconnecting...')
                 while True:
                     try:
-                        conn = psycopg2.connect(
-                            database="db_01_shevtsov", user='postgres', password='133451', host='database', port='5432'        
-                            # database="db_01_shevtsov", user='postgres', password='133451', host='127.0.0.1', port='5432'
-                        )
+                        conn = connect_to_database()
                         cur = conn.cursor()
 
                         print('Connection to database is succesful. Insertion is continuing...')
@@ -131,15 +112,14 @@ def create_init_table(conn, df, table):
 
     cur.close()
 
-def creating_tables(conn, df, table):
-    cur = conn.cursor()
-
-    create_init_table(conn, df, table)
-
     return conn
 
 # Starting point
 def main():
+
+    conn = connect_to_database()
+
+    init_table_name = 'zno_records'
 
     print('Reading zno_2019 csv file...')
     zno_2019_df = pd.read_csv(PATH_2019, sep=';', encoding='windows-1251', low_memory=False)
@@ -156,63 +136,73 @@ def main():
 
     zno_records['student_id'] = list(range(1, len(zno_records) + 1))
 
-    zno_records['spaBall100'] = zno_records['spaBall100'].str.replace(',', '.').astype(float)
-    zno_records['deuBall100'] = zno_records['deuBall100'].str.replace(',', '.').astype(float)
-    zno_records['engBall100'] = zno_records['engBall100'].str.replace(',', '.').astype(float)
-    zno_records['geoBall100'] = zno_records['geoBall100'].str.replace(',', '.').astype(float)
-    zno_records['bioBall100'] = zno_records['bioBall100'].str.replace(',', '.').astype(float)
-    zno_records['chemBall100'] = zno_records['chemBall100'].str.replace(',', '.').astype(float)
-    zno_records['physBall100'] = zno_records['physBall100'].str.replace(',', '.').astype(float)
-    zno_records['mathBall100'] = zno_records['mathBall100'].str.replace(',', '.').astype(float)
-    zno_records['histBall100'] = zno_records['histBall100'].str.replace(',', '.').astype(float)
-    zno_records['UkrBall100'] = zno_records['UkrBall100'].str.replace(',', '.').astype(float)
-    zno_records['fraBall100'] = zno_records['fraBall100'].str.replace(',', '.').astype(float)
-
-    conn = psycopg2.connect(
-        database="db_01_shevtsov", user='postgres', password='133451', host='database', port='5432'        
-        # database="db_01_shevtsov", user='postgres', password='133451', host='127.0.0.1', port='5432'
-    )
-
-    conn = creating_tables(conn, zno_records, 'zno_records')
+    conn = creating_tables(conn, zno_records, init_table_name)
 
     cur = conn.cursor()
 
     # 11. Порівняти середній бал з Фізики у кожному регіоні у 2020 та 2019 роках серед тих кому
     # було зараховано тест
 
-    avg_phys_grades_query = \
-    '''
-    SELECT z_2019.Регіон, Середній_бал_з_фізики_2019, Середній_бал_з_фізики_2020
-    FROM (
-        SELECT ptregname AS Регіон, ROUND(AVG(ball100), 2) AS Середній_бал_з_фізики_2019
-        FROM results
-        INNER JOIN students USING(student_id)
-        INNER JOIN zno_locations ON zno_locations.location_id = students.reg_location_id
-        WHERE teststatus = 'Зараховано' AND
-            ball100 <> 'NaN' AND
-            testname = 'Фізика' AND
-            year = 2019
-        GROUP BY Регіон
-    ) z_2019 JOIN
-    (
-        SELECT ptregname AS Регіон, ROUND(AVG(ball100), 2) AS Середній_бал_з_фізики_2020
-        FROM results
-        INNER JOIN students USING(student_id)
-        INNER JOIN zno_locations ON zno_locations.location_id = students.reg_location_id
-        WHERE teststatus = 'Зараховано' AND
-            ball100 <> 'NaN' AND
-            testname = 'Фізика' AND
-            year = 2020
-        GROUP BY Регіон
-    ) z_2020 ON z_2019.Регіон = z_2020.Регіон;
-    '''
+    while True:
+        get_tables_query = \
+        '''
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        '''
 
-    print('Executing average physics grades queries...')
-    cur.execute(avg_phys_grades_query)
+        cur.execute(get_tables_query)
 
-    avg_phys_grades_df = pd.DataFrame(cur.fetchall())
-    avg_phys_grades_df.columns = ['Регіон', 'Середній_бал_з_фізики_2019', 'Середній_бал_з_фізики_2020']
-    avg_phys_grades_df.to_csv(f'{CWD}/result.csv', encoding='windows-1251', index=False)
+        tables = cur.fetchall()
+        have_to_be_tables = [('zno_locations',), ('schools',), ('results',), ('students',)]
+
+        for table in have_to_be_tables:
+            if table not in tables:
+                print(f'Not found {table} table. Waiting for migration...')
+                time.sleep(5)
+                continue
+            else:
+                print(f'{table} is exists.')
+        
+        print('All needed tables are found.')
+
+        print('Executing average physics grades query...')
+
+        avg_phys_grades_query = \
+        '''
+        SELECT z_2019.Регіон, Середній_бал_з_фізики_2019, Середній_бал_з_фізики_2020
+        FROM (
+            SELECT ptregname AS Регіон, ROUND(AVG(REPLACE(ball100, ',', '.')::NUMERIC), 2) AS Середній_бал_з_фізики_2019
+            FROM results
+            INNER JOIN students USING(student_id)
+            INNER JOIN zno_locations ON zno_locations.location_id = students.reg_location_id
+            WHERE teststatus = 'Зараховано' AND
+                ball100 <> 'NaN' AND
+                testname = 'Фізика' AND
+                year = 2019
+            GROUP BY Регіон
+        ) z_2019 JOIN
+        (
+            SELECT ptregname AS Регіон, ROUND(AVG(REPLACE(ball100, ',', '.')::NUMERIC), 2) AS Середній_бал_з_фізики_2020
+            FROM results
+            INNER JOIN students USING(student_id)
+            INNER JOIN zno_locations ON zno_locations.location_id = students.reg_location_id
+            WHERE teststatus = 'Зараховано' AND
+                ball100 <> 'NaN' AND
+                testname = 'Фізика' AND
+                year = 2020
+            GROUP BY Регіон
+        ) z_2020 ON z_2019.Регіон = z_2020.Регіон;
+        '''
+
+        cur.execute(avg_phys_grades_query)
+
+        avg_phys_grades_df = pd.DataFrame(cur.fetchall())
+        avg_phys_grades_df.columns = ['Регіон', 'Середній_бал_з_фізики_2019', 'Середній_бал_з_фізики_2020']
+        avg_phys_grades_df.to_csv(f'{CWD}/result.csv', encoding='windows-1251', index=False)
+
+        print('Executed successfully.')
+        break
 
 start_time = time.time()
 
