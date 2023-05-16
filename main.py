@@ -20,23 +20,23 @@ DTYPE_DICT = {
     'object': 'VARCHAR(256)'
 }
 
-def migration(conn):
-    path_to_sql_script = CWD + '\sql\migration.sql'
+# def migration(conn):
+#     path_to_sql_script = CWD + '\sql\V0_migration.sql'
 
-    # Executing commands
-    sql_file = None
+#     # Executing commands
+#     sql_file = None
 
-    with open(path_to_sql_script, 'r') as f:
-        sql_file = f.read()
+#     with open(path_to_sql_script, 'r') as f:
+#         sql_file = f.read()
 
-    sql_commands = sql_file.split(';')
+#     sql_commands = sql_file.split(';')
 
-    for command in sql_commands:
-        try:
-            cur = conn.cursor()
-            cur.execute(command)
-        except Exception as e:
-            print("Command skipped: ", str(e))
+#     for command in sql_commands:
+#         try:
+#             cur = conn.cursor()
+#             cur.execute(command)
+#         except Exception as e:
+#             print("Command skipped: ", str(e))
 
 def create_init_table(conn, df, table):
 
@@ -58,9 +58,16 @@ def create_init_table(conn, df, table):
 
     cur.execute(create_table_query)
     conn.commit()
-    # !!! TODO
+
     # Inserting into table
-    tuples = [tuple(x) for x in df.to_numpy()]
+    tuples = []
+    it = 0
+    for i in df.to_numpy():
+        it += 1
+        tuples.append(tuple(i))
+        if it % 10 == 0:
+            print('Inserted', it)
+
 
     cols = ','.join(list(df.columns))
 
@@ -127,52 +134,7 @@ def create_init_table(conn, df, table):
 def creating_tables(conn, df, table):
     cur = conn.cursor()
 
-    # look_for_init_table_query = \
-    # f'''
-    # SELECT * 
-    # FROM INFORMATION_SCHEMA.TABLES 
-    # WHERE TABLE_NAME = '{table}'
-    # '''
-
-    # cur.execute(look_for_init_table_query)
-
-    # is_zno_records_table_exists = False if cur.fetchone() == None else True
-
     create_init_table(conn, df, table)
-
-    # if not is_zno_records_table_exists:
-    #     create_init_table(conn, df, table)
-    # else:
-    #     is_rewriting_init_table = int(input('Initial table of zno records is already exists, do you want to rewrite it?(1 - yes, 0 - no): '))
-
-    #     if is_rewriting_init_table == 1:
-    #         create_init_table(conn, df, table)
-
-    # Migrating
-
-    # look_for_migrated_table_query = \
-    # f'''
-    # SELECT * 
-    # FROM INFORMATION_SCHEMA.TABLES 
-    # WHERE TABLE_NAME = 'students'
-    # '''
-
-    # cur.execute(look_for_migrated_table_query)
-
-    # is_migrated_tables_exists = False if cur.fetchone() == None else True
-
-    print('Migrating...')
-    migration(conn)
-
-    # if not is_migrated_tables_exists:
-    #     print('Migrating...')
-    #     migration(conn)
-    # else:
-    #     is_rewriting_migrated_tables = int(input('Migrated tables are already exist, do you want to rewrite them?(1 - yes, 0 - no): '))
-
-    #     if is_rewriting_migrated_tables == 1:
-    #         print('Migrating...')
-    #         migration(conn)
 
     return conn
 

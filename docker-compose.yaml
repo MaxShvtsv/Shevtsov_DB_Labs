@@ -3,9 +3,10 @@ services:
   flyway:
     image: flyway/flyway
     command:
-      -url=jdbc:postgresql://database:5432/db_01_shevtsov -user=postgres -password=133451 migrate
+      -url=jdbc:postgresql://database:5432/db_01_shevtsov -user=postgres -password=133451 -connectRetries=60 migrate
     volumes:
-      - ./sql:/flyway/sql
+      - .:/flyway/sql
+      - ./flyway/flyway.conf:/flyway/conf/flyway.conf
     depends_on:
       - database
 
@@ -21,7 +22,7 @@ services:
       - '5432:5432'
 
   app:
-    build: ./app/
+    build: .
     depends_on:
       - database
     environment:
